@@ -38,12 +38,31 @@
     .off {
       color: red;
     }
+
+    table {
+      margin: 30px auto;
+      border-collapse: collapse;
+      width: 80%;
+      background: white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+
+    th {
+      background-color: #444;
+      color: white;
+    }
   </style>
 </head>
 <body>
 
-  <h1>ESP32 PIR & IR Sensor Data</h1>
+  <h1>ESP32 PIR & IR Sensor Dashboard</h1>
 
+  <!-- LIVE STATUS -->
   <div class="card">
     <p>PIR Motion Sensor</p>
     <div id="pirStatus" class="status">Loading...</div>
@@ -54,14 +73,31 @@
     <div id="irStatus" class="status">Loading...</div>
   </div>
 
+  <!-- HISTORY TABLE -->
+  <h2>Previous Sensor Data</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date & Time</th>
+        <th>PIR Status</th>
+        <th>IR Status</th>
+      </tr>
+    </thead>
+    <tbody id="historyTable">
+    </tbody>
+  </table>
+
   <script>
     const channelID = "3245595";
     const readAPIKey = "LS0MA0XW5850J7QG";
-    const url = `https://api.thingspeak.com/channels/${channelID}/feeds/last.json?api_key=${readAPIKey}`;
 
-    function fetchData() {
-      fetch(url)
-        .then(response => response.json())
+    const latestURL = `https://api.thingspeak.com/channels/${channelID}/feeds/last.json?api_key=${readAPIKey}`;
+    const historyURL = `https://api.thingspeak.com/channels/${channelID}/feeds.json?api_key=${readAPIKey}&results=10`;
+
+    // -------- LIVE DATA --------
+    function fetchLiveData() {
+      fetch(latestURL)
+        .then(res => res.json())
         .then(data => {
           const pir = data.field1;
           const ir = data.field2;
@@ -69,32 +105,48 @@
           const pirDiv = document.getElementById("pirStatus");
           const irDiv = document.getElementById("irStatus");
 
-          if (pir === "1") {
-            pirDiv.innerHTML = "MOTION DETECTED";
-            pirDiv.className = "status on";
-          } else {
-            pirDiv.innerHTML = "NO MOTION";
-            pirDiv.className = "status off";
-          }
+          pirDiv.textContent = pir === "1" ? "MOTION DETECTED" : "NO MOTION";
+          pirDiv.className = pir === "1" ? "status on" : "status off";
 
-          if (ir === "1") {
-            irDiv.innerHTML = "OBJECT DETECTED";
-            irDiv.className = "status on";
-          } else {
-            irDiv.innerHTML = "NO OBJECT";
-            irDiv.className = "status off";
-          }
-        })
-        .catch(error => {
-          console.error("Error fetching data:", error);
+          irDiv.textContent = ir === "1" ? "OBJECT DETECTED" : "NO OBJECT";
+          irDiv.className = ir === "1" ? "status on" : "status off";
         });
     }
 
-    // Fetch immediately
-    fetchData();
+    // -------- HISTORY DATA --------
+    function fetchHistoryData() {
+      fetch(historyURL)
+        .then(res => res.json())
+        .then(data => {
+          const tableBody = document.getElementById("historyTable");
+          tableBody.innerHTML = "";
+
+          data.feeds.forEach(feed => {
+            const time = new Date(feed.created_at).toLocaleString();
+            const pir = feed.field1 === "1" ? "Motion" : "No Motion";
+            const ir = feed.field2 === "1" ? "Object" : "No Object";
+
+            const row = `
+              <tr>
+                <td>${time}</td>
+                <td>${pir}</td>
+                <td>${ir}</td>
+              </tr>
+            `;
+            tableBody.innerHTML += row;
+          });
+        });
+    }
+
+    // Initial load
+    fetchLiveData();
+    fetchHistoryData();
 
     // Refresh every 15 seconds
-    setInterval(fetchData, 15000);
+    setInterval(() => {
+      fetchLiveData();
+      fetchHistoryData();
+    }, 15000);
   </script>
 
 </body>
